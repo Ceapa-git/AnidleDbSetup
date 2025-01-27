@@ -11,11 +11,16 @@ const db = client.db(process.env.DATABASE);
 
 const anime = db.collection("anime");
 anime.deleteMany({});
+const genresDb = db.collection("genres");
+genresDb.deleteMany({});
 
 let i = 1;
 const step = 500;
 // const aditional = [];
+const genres = {};
 const sanitizedData = [];
+
+let first = true;
 
 for (; i <= 6000; i = i + step) {
   const fileName = `${i}-${i + step - 1}.json`;
@@ -24,7 +29,7 @@ for (; i <= 6000; i = i + step) {
   const file = JSON.parse(await readFile(fileName, "utf8"));
   const data = file["data"];
 
-  data.forEach((entryNode, index) => {
+  for (const entryNode of data) {
     const entry = entryNode["node"];
     const sanitized = {};
 
@@ -36,10 +41,33 @@ for (; i <= 6000; i = i + step) {
       entry["alternative_titles"]["en"],
       ...entry["alternative_titles"]["synonyms"],
     );
-    if (i === 1 && index === 0) console.log(sanitized);
 
-    sanitizedData.push(sanitized);
-  });
+    sanitized["image"] = entry["main_picture"]["medium"];
+    sanitized["year"] = entry["start_date"].split("-")[0];
+    sanitized["description"] = entry["synopsis"];
+    sanitized["score"] = entry["mean"];
+    sanitized["genres"] = [];
+
+    try {
+      for (const genre of entry["genres"]) {
+        let id;
+        if (genres.hasOwnProperty(genre["name"])) {
+          id = genres[genre["name"]];
+        } else {
+          const insertId = await genresDb.insertOne({ name: genre["name"] });
+          id = insertId.insertedId;
+          genres[genre["name"]] = id;
+        }
+        sanitized["genres"].push(id);
+      }
+
+      if (first) console.log(sanitized);
+      first = false;
+      sanitizedData.push(sanitized);
+    } catch (e) {
+      console.log(sanitized);
+    }
+  }
 }
 await anime.insertMany(sanitizedData);
 client.close();
