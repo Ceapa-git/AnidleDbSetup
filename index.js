@@ -13,11 +13,15 @@ const anime = db.collection("anime");
 anime.deleteMany({});
 const genresDb = db.collection("genres");
 genresDb.deleteMany({});
+const studiosDb = db.collection("studios");
+studiosDb.deleteMany({});
 
 let i = 1;
 const step = 500;
 // const aditional = [];
 const genres = {};
+const studios = {};
+
 const sanitizedData = [];
 
 let first = true;
@@ -46,8 +50,9 @@ for (; i <= 6000; i = i + step) {
     sanitized["year"] = entry["start_date"].split("-")[0];
     sanitized["description"] = entry["synopsis"];
     sanitized["score"] = entry["mean"];
-    sanitized["genres"] = [];
+    sanitized["source"] = entry["source"];
 
+    sanitized["genres"] = [];
     try {
       for (const genre of entry["genres"]) {
         let id;
@@ -60,13 +65,32 @@ for (; i <= 6000; i = i + step) {
         }
         sanitized["genres"].push(id);
       }
-
-      if (first) console.log(sanitized);
-      first = false;
-      sanitizedData.push(sanitized);
     } catch (e) {
       console.log(sanitized);
     }
+
+    sanitized["studios"] = [];
+    try {
+      for (const studio of entry["studios"]) {
+        let id;
+        if (studios.hasOwnProperty(studio["name"])) {
+          id = studios[studio["name"]];
+        } else {
+          const insertId = await studiosDb.insertOne({ name: studio["name"] });
+          id = insertId.insertedId;
+          studios[studio["name"]] = id;
+        }
+        sanitized["studios"].push(id);
+      }
+    } catch (e) {
+      console.log(sanitized);
+    }
+
+    sanitized["lastUpdated"] = new Date();
+
+    if (first) console.log(sanitized);
+    first = false;
+    sanitizedData.push(sanitized);
   }
 }
 await anime.insertMany(sanitizedData);
